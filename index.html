@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Customer Management</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4"><i class="fas fa-users"></i> Customer Management</h1>
+        
+        <!-- Add/Edit Customer Form -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 id="formTitle">Add New Customer</h5>
+            </div>
+            <div class="card-body">
+                <form id="customerForm">
+                    <input type="hidden" id="customerId">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="firstName" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="firstName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="lastName" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="lastName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="number" class="form-label">Phone Number</label>
+                                <input type="text" class="form-control" id="number" required>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <i class="fas fa-plus"></i> Add Customer
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="cancelBtn" style="display: none;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Customer Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5>Customer List</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>First Name</th>
+                                <th>Last Name</th>
+                                <th>Phone Number</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customerTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        let customers = [];
+        let editingId = null;
+
+        // Load customers when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page loaded, loading customers...');
+            loadCustomers();
+        });
+
+        function loadCustomers() {
+            console.log('Calling getCustomers...');
+            google.script.run
+                .withSuccessHandler(displayCustomers)
+                .withFailureHandler(showError)
+                .getCustomers();
+        }
+
+        function displayCustomers(data) {
+            console.log('Received customers:', data);
+            customers = data;
+            const tbody = document.getElementById('customerTableBody');
+            
+            if (customers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No customers found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = customers.map(customer => `
+                <tr>
+                    <td>${customer['Customer ID']}</td>
+                    <td>${customer['First Name']}</td>
+                    <td>${customer['Last Name']}</td>
+                    <td>${customer['Number']}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="editCustomer(${customer['Customer ID']})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomer(${customer['Customer ID']})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Handle form submission
+        document.getElementById('customerForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent default form submission
+            
+            const customer = {
+                firstName: document.getElementById('firstName').value,
+                lastName: document.getElementById('lastName').value,
+                number: document.getElementById('number').value
+            };
+
+            if (editingId) {
+                // We're editing an existing customer
+                customer.id = editingId;
+                google.script.run
+                    .withSuccessHandler(handleUpdateSuccess)
+                    .withFailureHandler(showError)
+                    .updateCustomer(customer);
+            } else {
+                // We're adding a new customer
+                google.script.run
+                    .withSuccessHandler(handleAddSuccess)
+                    .withFailureHandler(showError)
+                    .addCustomer(customer);
+            }
+        });
+
+        function handleAddSuccess(result) {
+            if (result.success) {
+                console.log('Customer added successfully!');
+                resetForm();
+                loadCustomers(); // Refresh the table
+                alert('Customer added successfully!');
+            }
+        }
+
+        function handleUpdateSuccess(result) {
+            if (result.success) {
+                console.log('Customer updated successfully!');
+                resetForm();
+                loadCustomers(); // Refresh the table
+                alert('Customer updated successfully!');
+            }
+        }
+
+        function resetForm() {
+            editingId = null;
+            document.getElementById('customerForm').reset();
+            document.getElementById('customerId').value = '';
+            document.getElementById('formTitle').textContent = 'Add New Customer';
+            document.getElementById('submitBtn').innerHTML = '<i class="fas fa-plus"></i> Add Customer';
+            document.getElementById('cancelBtn').style.display = 'none';
+        }
+
+        function showError(error) {
+            console.error('Error:', error);
+            alert('An error occurred: ' + error.message);
+        }
+    </script>
+</body>
+</html>
